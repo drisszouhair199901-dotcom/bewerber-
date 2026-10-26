@@ -127,31 +127,29 @@ Tel.: {telefon}</textarea>
 
   const $ = (id) => document.getElementById(id);
   let TOKEN = null, NAME = "", MAIL = "", JOBS = [];
-
-  $("login").addEventListener("click", function() {
+  $("login").addEventListener("click", async function() {
     $("err").hidden = true;
-    if (!sb) {
-      $("err").textContent = "Supabase ist nicht initialisiert.";
-      $("err").hidden = false;
-      return;
-    }
-    sb.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.href.split('#')[0],
-        scopes: "https://www.googleapis.com/auth/gmail.send email profile",
-        queryParams: { access_type: "offline", prompt: "consent" }
-      }
-    }).then(({ error }) => {
+    try {
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + window.location.pathname,
+          scopes: "https://www.googleapis.com/auth/gmail.send email profile",
+          queryParams: { access_type: "offline", prompt: "consent" }
+        }
+      });
       if (error) {
         $("err").textContent = "Google Login Fehler: " + error.message;
         $("err").hidden = false;
       }
-    }).catch(err => {
-      $("err").textContent = "Fehler: " + err.message;
-      $("err").hidden = false;
-    });
+    } catch (e) {
+      // حل احتياطي مباشر إذا تم حظر الـ SDK
+      const clientId = "YOUR_GOOGLE_CLIENT_ID"; // أو سيتم التحويل عبر Supabase Endpoint المباشر
+      window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`;
+    }
   });
+  
+
 
   $("logout").onclick = $("glogout").onclick = async () => { ACC = ""; localStorage.removeItem("acc"); if (sb) await sb.auth.signOut(); render(null); };
 
