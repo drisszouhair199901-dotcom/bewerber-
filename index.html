@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ausbildung Bewerber</title>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root { --bg:#f3f6f4; --ink:#14221c; --muted:#5b6b64; --card:#ffffff; --accent:#0f6b4f; --line:#d9e2dd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1714; --ink:#e8f0ec; --muted:#93a39b; --card:#17221e; --accent:#3fbf93; --line:#26362f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:20px;
+         background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, sans-serif; }
+  main { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line);
+         border-radius:14px; padding:32px 26px; }
+  h1 { font-size:1.6rem; margin:0 0 8px; line-height:1.2; }
+  p { color:var(--muted); margin:0 0 22px; }
+  button { width:100%; padding:13px 16px; border-radius:10px; border:1px solid var(--line);
+           background:var(--ink); color:var(--bg); font:600 1rem system-ui, sans-serif; cursor:pointer; }
+  button:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  button.ghost { background:transparent; color:var(--ink); margin-top:10px; }
+  .user { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+  .user img { width:44px; height:44px; border-radius:50%; }
+  .user b { display:block; } .user span { color:var(--muted); font-size:.9rem; word-break:break-all; }
+  .note { font-size:.85rem; margin-top:16px; }
+  .err { color:#c0392b; margin-top:12px; font-size:.9rem; }
+  main.wide { max-width:980px; }
+  input, textarea { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; } .row > * { flex:1 1 150px; width:auto; }
+  .tw { overflow-x:auto; } table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; } td input { min-width:190px; padding:6px; }
+  button.s { width:auto; padding:10px 16px; } h2 { font-size:1.1rem; margin:22px 0 8px; } textarea { min-height:300px; }
+  input[type=checkbox] { width:auto; min-width:0; padding:0; }
+  .src label { display:block; padding:6px 0; } .src input[type=text] { margin:4px 0 8px; } .off { color:var(--muted); }
+  .live { max-height:170px; overflow:auto; color:#1f9d55; font-size:.9rem; background:var(--bg); border-radius:8px; padding:8px 10px; margin:10px 0; }
+  button.stop { background:#d62828; color:#fff; border:0; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <section id="out">
+    <h1>Bewirb dich auf viele Ausbildungsplätze gleichzeitig.</h1>
+    <p>Melde dich mit Google an. Deine Bewerbungen werden von deinem eigenen Gmail-Konto gesendet. Wir können deine E-Mails nicht lesen.</p>
+    <button id="login">Mit Google anmelden</button>
+    <div class="err" id="err" hidden></div>
+  </section>
+
+  <section id="gate" hidden style="max-width:420px;margin:auto">
+    <h1>Zugang</h1>
+    <p id="gmsg">Melde dich an oder erstelle ein Konto. Neue Konten erhalten 1 Stunde kostenlos.</p>
+    <div id="gform">
+      <div class="row" style="flex-direction:column"><input id="gem" type="email" placeholder="E-Mail" autocomplete="username" aria-label="E-Mail"><input id="gpw" type="password" placeholder="Passwort (mind. 6 Zeichen)" autocomplete="current-password" aria-label="Passwort"></div>
+      <button id="glogin">Anmelden</button><button class="ghost" id="greg">Konto erstellen (1 Std. gratis)</button>
+    </div>
+    <a id="gwa" hidden target="_blank" rel="noopener"><button type="button">Per WhatsApp freischalten lassen</button></a>
+    <div class="err" id="gerr" hidden></div>
+    <button class="ghost" id="glogout">Abmelden</button>
+  </section>
+
+  <section id="in" hidden>
+    <div class="user">
+      <img id="avatar" alt="" referrerpolicy="no-referrer">
+      <div><b id="name"></b><span id="email"></span></div>
+    </div>
+    <p id="gmailState"></p>
+    <p id="acc" class="note"></p>
+    <div class="src">
+      <label><input type="checkbox" id="s_ba" checked> Arbeitsagentur</label>
+      <label><input type="checkbox" id="s_maps"> Google Maps</label>
+      <label><input type="checkbox" id="s_portal"> Azubiyo, Aubi-plus, Ausbildung.de, Azubica</label>
+      <input type="text" id="plink" placeholder="Link einer Suchseite des Portals einfügen" aria-label="Portal-Link">
+      <label class="off"><input type="checkbox" disabled> Indeed, LinkedIn, Xing (Bald)</label>
+    </div>
+    <div class="row"><input id="was" value="Pflegefachmann" aria-label="Beruf"><input id="wo" placeholder="Ort (z.B. Berlin)" aria-label="Ort"><button class="s" id="search">Suchen</button></div>
+    <div id="info" class="note"></div>
+    <div id="live" class="live" hidden></div>
+    <button class="s stop" id="stop" hidden>Stop</button>
+    <div class="tw"><table><thead><tr><th></th><th>Firma</th><th>Beruf</th><th>Ort</th><th>Ansprechpartner</th><th>E-Mail</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
+
+    <h2>Dein Profil (Briefkopf)</h2>
+    <div class="row"><input id="pname" placeholder="Vor- und Nachname" aria-label="Name"><input id="pcity" placeholder="Wohnort (z.B. Fes, Marokko)" aria-label="Wohnort"><input id="pphone" placeholder="Telefon" aria-label="Telefon"></div>
+
+    <h2>Unterlagen</h2>
+    <label class="note">Lebenslauf (PDF)</label><input type="file" id="cv" accept=".pdf">
+    <label class="note">Zeugnisse (PDF, mehrere möglich)</label><input type="file" id="zeug" accept=".pdf" multiple>
+
+    <h2>Angaben für das Anschreiben</h2>
+    <div class="row"><input id="qaufenthalt" placeholder="Aufenthalt/Visum (z.B. Ich benötige ein Visum zur Ausbildung)"><input id="qbeginn" placeholder="Frühester Beginn (z.B. 01.09.2027)"><input id="qumzug" placeholder="Umzugsbereit? (z.B. Ja, deutschlandweit)"></div>
+    <textarea id="qextra" style="min-height:80px" placeholder="Sonstiges, das im Anschreiben stehen soll (optional)"></textarea>
+    <div class="row" style="margin-top:10px"><button class="s" id="gen">Anschreiben aus Lebenslauf und Zeugnissen erstellen</button></div>
+    <p class="note" id="genst"></p>
+
+    <h2>Anschreiben (wird als PDF angehängt)</h2>
+    <p class="note">Platzhalter: {anrede}, {firma}, {beruf}, {name}. Ohne Ansprechpartner steht dort "Sehr geehrte Damen und Herren,". Mit Ansprechpartner z.B. "Sehr geehrter Herr Müller," oder "Sehr geehrte Frau Meier,".</p>
+    <input id="subj" value="Bewerbung um einen Ausbildungsplatz als Pflegefachmann (m/w/d)" aria-label="Betreff">
+    <textarea id="txt" placeholder="Hier erscheint dein Anschreiben. Klicke oben auf Anschreiben erstellen."></textarea>
+
+    <h2>E-Mail-Text</h2>
+    <textarea id="mailtxt" style="min-height:150px">{anrede}
+
+anbei erhalten Sie meine Bewerbung um einen Ausbildungsplatz als {beruf} mit Anschreiben und Lebenslauf. Über eine Einladung zu einem persönlichen Gespräch, gern auch online, würde ich mich sehr freuen.
+
+Mit freundlichen Grüßen
+{name}
+Tel.: {telefon}</textarea>
+    <h2>Sendeplan (schützt dein Gmail-Konto)</h2>
+    <div class="row"><label class="note">Pause min. (Sek.)<input id="dmin" type="number" min="10" value="10"></label><label class="note">Pause max. (Sek.)<input id="dmax" type="number" min="10" value="180"></label><label class="note">Pause nach X E-Mails<input id="batch" type="number" min="1" value="20"></label><label class="note">Lange Pause (Min.)<input id="pause" type="number" min="1" value="5"></label></div>
+    <div class="row" style="margin-top:12px"><button class="s" id="send">Ausgewählte senden</button><button class="s ghost" id="csv">Excel (CSV)</button><button class="s ghost" id="testmail">Test an mich senden</button></div>
+    <p class="note">Gmail erlaubt ca. 500 E-Mails pro Tag. Die App wartet zufällig zwischen den E-Mails (mind. 10 Sek.) und macht nach je 20 E-Mails 5 Minuten Pause. Lass diese Seite geöffnet, der Bildschirm bleibt dabei an.</p>
+    <button class="ghost" id="logout">Abmelden</button>
+  </section>
+</main>
+<script>
+  // Supabase → Project Settings → API (der anon key ist öffentlich, kein Secret)
+  const SUPABASE_URL = "https://obmqvalclexmfstkwkih.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_Mcq6NZ1DqiJTNaeRmYDFrg_5WPy79Zi";
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const $ = (id) => document.getElementById(id);
+  let TOKEN = null, NAME = "", MAIL = "", JOBS = [];
+
+  $("login").onclick = async () => {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+        scopes: "https://www.googleapis.com/auth/gmail.send email profile",
+        queryParams: { access_type: "offline", prompt: "consent" }
+      }
+    });
+    if (error) { $("err").textContent = error.message; $("err").hidden = false; }
+  };
+
+  $("logout").onclick = $("glogout").onclick = async () => { ACC = ""; localStorage.removeItem("acc"); await sb.auth.signOut(); render(null); };
+
+  // ---- Zugang (Google Sheet) ----
+  const DEV = (() => { let d = localStorage.getItem("dev"); if (!d) { d = "DEV_" + crypto.randomUUID().replaceAll("-", "").slice(0, 16); localStorage.setItem("dev", d); } return d; })();
+  let ACC = localStorage.getItem("acc") || "", EXP = null, ADMIN = false;
+  const api = (url, o = {}) => fetch(url, { ...o, headers: { ...(o.headers || {}), Authorization: "Bearer " + ACC, "x-device": DEV } });
+  const JSONH = { "Content-Type": "application/json" };
+  const REASON = { expired: "Dein Zugang ist abgelaufen.", pending: "Dein Konto wartet auf Freischaltung (die kostenlose Stunde wurde auf diesem Gerät schon genutzt).", blocked: "Dein Konto ist nicht aktiv.", device: "Dieses Konto ist an ein anderes Gerät gebunden." };
+  function showGate(d) {
+    $("in").hidden = true; $("gate").hidden = false;
+    const locked = !!(d && d.reason && d.reason !== "login");
+    $("gform").hidden = locked; $("gwa").hidden = !locked;
+    $("gmsg").textContent = locked ? REASON[d.reason] + " Schreibe dem Admin per WhatsApp, um dein Konto freizuschalten." : "Melde dich an oder erstelle ein Konto. Neue Konten erhalten 1 Stunde kostenlos.";
+    if (locked) $("gwa").href = "https://wa.me/" + d.wa + "?text=" + encodeURIComponent("Hallo, bitte schalte mein Konto frei: " + (localStorage.getItem("accmail") || ""));
+  }
+  async function gateCheck() {
+    if (!ACC) return showGate();
+    try {
+      const r = await api("/api/auth"), d = await r.json();
+      if (r.ok) { EXP = d.exp; ADMIN = d.admin; $("gate").hidden = true; $("in").hidden = false; return true; }
+      if (r.status === 401) { ACC = ""; localStorage.removeItem("acc"); }
+      showGate(d);
+    } catch {}
+    return false;
+  }
+  async function gAuth(action) {
+    $("gerr").hidden = true;
+    try {
+      const email = $("gem").value.trim(), r = await fetch("/api/auth", { method: "POST", headers: JSONH, body: JSON.stringify({ action, email, password: $("gpw").value, device: DEV }) });
+      const d = await r.json();
+      if (!r.ok) { $("gerr").textContent = d.error || "Fehler"; $("gerr").hidden = false; return; }
+      ACC = d.token; localStorage.setItem("acc", ACC); localStorage.setItem("accmail", email); gateCheck();
+    } catch { $("gerr").textContent = "Verbindung fehlgeschlagen"; $("gerr").hidden = false; }
+  }
+  $("glogin").onclick = () => gAuth("login"); $("greg").onclick = () => gAuth("register");
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  setInterval(() => {
+    if ($("in").hidden) return;
+    if (ADMIN || !EXP) { $("acc").textContent = ADMIN ? "Admin-Zugang (unbegrenzt)" : "Zugang aktiv"; return; }
+    const s = Math.floor((EXP - Date.now()) / 1000);
+    if (s <= 0) { STOP = true; gateCheck(); return; }
+    $("acc").textContent = s > 86400 ? `Zugang aktiv bis ${new Date(EXP).toLocaleDateString("de-DE")}` : `Zugang aktiv: noch ${mmss(s)}`;
+  }, 1000);
+  setInterval(() => { if (!$("in").hidden) gateCheck(); }, 60000);
+
+  function render(session) {
+    if (!session) TOKEN = null; else if (session.provider_token) TOKEN = session.provider_token;
+    if (session && session.provider_refresh_token) try { localStorage.setItem("grt", session.provider_refresh_token); } catch {}
+    document.querySelector("main").classList.toggle("wide", !!session);
+    $("out").hidden = !!session;
+    if (!session) { $("gate").hidden = true; $("in").hidden = true; return; }
+    gateCheck();
+    const m = session.user.user_metadata || {};
+    NAME = m.full_name || m.name || "";
+    MAIL = session.user.email;
+    if (!$("pname").value) { try { const p = JSON.parse(localStorage.getItem("prof") || "{}"); ["pname", "pcity", "pphone"].forEach(k => $(k).value = p[k] || ""); } catch {} }
+    if (!$("pname").value) $("pname").value = NAME;
+    $("name").textContent = NAME;
+    $("email").textContent = session.user.email;
+    if (m.avatar_url) $("avatar").src = m.avatar_url;
+    $("gmailState").textContent = (TOKEN || localStorage.getItem("grt"))
+      ? "Gmail-Zugriff erteilt. Du kannst jetzt Bewerbungen senden."
+      : "Angemeldet. Melde dich neu an, um den Gmail-Zugriff zu erteilen.";
+  }
+
+  const prof = () => ({ name: $("pname").value.trim(), city: $("pcity").value.trim(), phone: $("pphone").value.trim() });
+
+  // ---- Anrede: Herr/Frau anhand des Vornamens, sonst neutral ----
+  const MALE = new Set("alexander andreas benjamin christian daniel david dennis dirk felix florian frank hans jan jens jochen johannes jonas jürgen juergen karl klaus lars lukas marc marco markus martin matthias max michael niklas oliver patrick paul peter philipp ralf robert sebastian stefan stephan sven thomas thorsten tim tobias tom uwe wolfgang ahmed mohamed mehmet ali".split(" "));
+  const FEMALE = new Set("andrea angelika anja anna annette barbara birgit brigitte christina claudia daniela doris eva franziska gabriele heike ingrid jana julia karin katharina katrin kerstin laura lisa maria marion martina melanie monika nicole petra sabine sandra sarah silke simone sonja stefanie susanne sylvia tanja ulrike ursula vanessa yvonne fatima ayse elif".split(" "));
+  function anredeFor(raw) {
+    const n = (raw || "").trim();
+    if (!n) return "Sehr geehrte Damen und Herren,";
+    const m = n.match(/^(herr|frau)\s+(.+)$/i);                       // "Herr Müller" direkt eingetippt
+    if (m) return (m[1].toLowerCase() === "herr" ? "Sehr geehrter Herr " : "Sehr geehrte Frau ") + m[2] + ",";
+    const parts = n.split(/\s+/), v = parts[0].toLowerCase(), last = parts[parts.length - 1];
+    if (parts.length > 1 && MALE.has(v)) return `Sehr geehrter Herr ${last},`;
+    if (parts.length > 1 && FEMALE.has(v)) return `Sehr geehrte Frau ${last},`;
+    return `Guten Tag ${n},`;
+  }
+  const anrede = (i) => anredeFor($("n" + i).value);
+  const fill = (t, j, i) => t.replaceAll(prof().phone ? "{telefon}" : "\nTel.: {telefon}", prof().phone ? prof().phone : "").replaceAll("{anrede}", anrede(i)).replaceAll("{firma}", j.firma).replaceAll("{beruf}", j.beruf).replaceAll("{name}", prof().name);
+
+  const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
+  const wrap76 = (b) => b.replace(/.{1,76}/g, "$&\r\n");
+  const safe = (s) => s.replace(/[^A-Za-z0-9._-]+/g, "_");
+  const readB64 = (f) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(f); });
+
+  function anschreibenPdf(j, i) {
+    const P = prof(), { jsPDF } = window.jspdf;
+    const MON = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+    const now = new Date(), town = (P.city || "").split(",")[0].trim();
+    const dateStr = (town ? town + ", den " : "") + `${now.getDate()}. ${MON[now.getMonth()]} ${now.getFullYear()}`;
+    const cn = $("n" + i).value.trim(), contact = cn ? "z.H. " + cn : "Personalabteilung";
+    const body = fill($("txt").value, j, i).split("\n"), subject = fill($("subj").value, j, i);
+    const build = (size) => {
+      const d = new jsPDF({ unit: "mm", format: "a4" }), lh = size * 0.45, W = 166;
+      let y = 22;
+      const put = (t, h, bold, sz, x = 22, align) => {
+        d.setFont("helvetica", bold ? "bold" : "normal"); d.setFontSize(sz);
+        d.splitTextToSize(t, align ? 100 : W).forEach(l => {
+          if (y > 282) { d.addPage(); y = 22; }
+          d.text(l, x, y + sz * 0.3528 * 0.8, align ? { align } : undefined); y += h;
+        });
+      };
+      // Absender rechts
+      const ys = y; y = 30;
+      [P.name, P.city, P.phone && "Telefon: " + P.phone, MAIL].filter(Boolean).forEach(t => put(t, 5, false, 10, 188, "right"));
+      const yAfterSender = y;
+      // Empfänger links
+      y = ys; put(j.firma, 5, false, 10); put(contact, 5, false, 10);
+      y = Math.max(y + 6, yAfterSender, 62);
+      put(dateStr, 5, false, 10); y += 5;
+      put(subject, lh, true, size); y += 4;
+      body.forEach(p => { if (p.trim()) { put(p, lh, false, size); } else y += 3; });
+      return d;
+    };
+    let d;
+    for (const size of [11, 10.5, 10, 9.5, 9]) { d = build(size); if (d.getNumberOfPages() === 1) break; }
+    return d.output("datauristring").split(",")[1].replace(/^.*base64,/, "");
+  }
+
+  function buildMime(to, subject, text, atts) {
+    const bd = "bw" + Math.random().toString(36).slice(2);
+    const m = [`To: ${to}`, `Subject: =?UTF-8?B?${b64(subject)}?=`, "MIME-Version: 1.0", `Content-Type: multipart/mixed; boundary="${bd}"`, "",
+      `--${bd}`, "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", wrap76(b64(text))];
+    atts.forEach(a => m.push(`--${bd}`, `Content-Type: ${a.type}; name="${a.name}"`, "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${a.name}"`, "", wrap76(a.data)));
+    m.push(`--${bd}--`, "");
+    return m.join("\r\n");
+  }
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  let STOP = false;
+  const enc = encodeURIComponent;
+  $("stop").onclick = () => { STOP = true; };
+
+  function addRow(j) {
+    const i = JOBS.push(j) - 1;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><input type="checkbox" id="c${i}"></td><td></td><td></td><td></td><td><input id="n${i}"></td><td><input id="e${i}" type="email"></td><td id="s${i}"></td>`;
+    [j.firma, j.beruf, `${j.plz} ${j.ort}`].forEach((v, k) => tr.children[k + 1].textContent = v);
+    $("rows").appendChild(tr);
+    const li = document.createElement("div");
+    li.textContent = `✓ (${i + 1}) ${j.firma}`;
+    $("live").appendChild(li); $("live").scrollTop = 1e9;
+  }
+
+  $("search").onclick = async () => {
+    STOP = false; JOBS = []; $("rows").innerHTML = ""; $("live").innerHTML = "";
+    $("live").hidden = false; $("stop").hidden = false;
+    const q = `was=${enc($("was").value)}&wo=${enc($("wo").value)}`, calls = [], msgs = [], seen = new Set();
+    if ($("s_ba").checked) calls.push(["Arbeitsagentur", `/api/jobs?${q}`]);
+    if ($("s_maps").checked) calls.push(["Google Maps", `/api/maps?${q}`]);
+    if ($("s_portal").checked) {
+      if ($("plink").value.trim()) calls.push(["Portal", `/api/portal?url=${enc($("plink").value.trim())}`]);
+      else msgs.push("Portal: Link fehlt");
+    }
+    for (const [name, url] of calls) {
+      if (STOP) break;
+      $("info").textContent = `Daten werden extrahiert… Verbinde mit ${name}`;
+      try {
+        const r = await api(url), d = await r.json();
+        if (r.status === 401 || r.status === 403) { gateCheck(); break; }
+        if (!r.ok) { msgs.push(`${name}: ${d.error || "Fehler"}`); continue; }
+        if (d.note) msgs.push(`${name}: ${d.note}`);
+        for (const j of d.jobs) {
+          const key = j.firma.toLowerCase().replace(/[^a-z0-9äöüß]/g, "");
+          if (!key || seen.has(key)) continue;
+          seen.add(key); j.quelle = name; addRow(j);
+          await sleep(30);
+        }
+      } catch { msgs.push(`${name}: Verbindung fehlgeschlagen`); }
+    }
+    let n = 0;
+    for (let k = 0; k < JOBS.length && !STOP; k += 5) {
+      $("info").textContent = `E-Mails werden gesucht… ${k}/${JOBS.length}`;
+      await Promise.all(JOBS.slice(k, k + 5).map(async (j, o) => {
+        const i = k + o; if (!j.site) return;
+        try {
+          const { email, name } = await (await api(`/api/email?url=${enc(j.site)}`)).json();
+          if (email) { $("n" + i).value = name || ""; $("e" + i).value = email; $("c" + i).checked = true; n++; }
+        } catch {}
+      }));
+    }
+    $("stop").hidden = true;
+    $("info").textContent = `${JOBS.length} Firmen, ${n} E-Mails gefunden.` + (msgs.length ? " " + msgs.join(" | ") : "");
+  };
+
+  const GURL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
+  async function gmailRefresh() {
+    const rt = localStorage.getItem("grt"); if (!rt) return false;
+    try { const r = await api("/api/refresh", { method: "POST", headers: JSONH, body: JSON.stringify({ refresh_token: rt }) }); if (!r.ok) return false; TOKEN = (await r.json()).access_token; return true; } catch { return false; }
+  }
+  async function gmailSend(mime) {
+    const go = () => fetch(GURL, { method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "message/rfc822" }, body: mime });
+    let r = await go();
+    if (r.status === 401 && await gmailRefresh()) r = await go();
+    return r;
+  }
+  async function wait(sec, label) { for (let s = sec; s > 0 && !STOP; s--) { $("info").textContent = `${label} ${mmss(s)}`; await sleep(1000); } }
+
+  $("send").onclick = async () => {
+    if (!TOKEN && !(await gmailRefresh())) { alert("Gmail-Zugriff fehlt. Bitte neu anmelden."); return; }
+    const P = prof();
+    if (!P.name) { alert("Bitte Name im Profil eintragen."); return; }
+    if (!$("txt").value.trim()) { alert("Bitte zuerst das Anschreiben erstellen."); return; }
+    try { localStorage.setItem("prof", JSON.stringify({ pname: P.name, pcity: P.city, pphone: P.phone })); } catch {}
+    const files = [];
+    for (const f of [...($("cv").files || []), ...($("zeug").files || [])])
+      files.push({ name: safe(f.name), type: f.type || "application/pdf", data: await readB64(f) });
+    if (!$("cv").files.length && !confirm("Kein Lebenslauf ausgewählt. Trotzdem senden?")) return;
+    const lo = Math.max(10, +$("dmin").value || 10), hi = Math.max(lo, +$("dmax").value || 180), batch = Math.max(1, +$("batch").value || 20), pause = Math.max(1, +$("pause").value || 5);
+    const todo = JOBS.map((_, i) => i).filter((i) => $("c" + i).checked && $("e" + i).value.trim());
+    if (!todo.length) { alert("Nichts zu senden: Suche zuerst Firmen oder trage in einer Zeile eine E-Mail ein und setze den Haken."); return; }
+    let wl = null, ok = 0; STOP = false; $("stop").hidden = false;
+    try { wl = await navigator.wakeLock.request("screen"); } catch {}
+    for (const [n, i] of todo.entries()) {
+      if (STOP) break;
+      const chk = await api("/api/auth"); if (!chk.ok) { gateCheck(); break; }
+      const to = $("e" + i).value.trim(), j = JOBS[i];
+      $("s" + i).textContent = "…"; $("info").textContent = `Sende ${n + 1}/${todo.length}…`;
+      let r = null;
+      try {
+        const letter = { name: safe(`Anschreiben_${P.name}_${j.firma}`).slice(0, 80) + ".pdf", type: "application/pdf", data: anschreibenPdf(j, i) };
+        r = await gmailSend(buildMime(to, fill($("subj").value, j, i), fill($("mailtxt").value, j, i), [letter, ...files]));
+        $("s" + i).textContent = r.ok ? "Gesendet" : "Fehler " + r.status;
+        if (r.ok) { $("c" + i).checked = false; ok++; }
+      } catch { $("s" + i).textContent = "Fehler"; }
+      if (r && (r.status === 401 || r.status === 429)) { alert(r.status === 401 ? "Gmail-Zugriff abgelaufen. Bitte neu anmelden." : "Gmail-Limit erreicht. Später fortsetzen."); break; }
+      if (n === todo.length - 1) break;
+      if ((n + 1) % batch === 0) await wait(pause * 60, `Pause nach ${n + 1} E-Mails. Weiter in`);
+      else await wait(Math.round(lo + Math.random() * (hi - lo)), "Nächste E-Mail in");
+    }
+    $("stop").hidden = true; $("info").textContent = `Fertig: ${ok} E-Mails gesendet.`;
+    try { wl && wl.release(); } catch {}
+  };
+
+  $("gen").onclick = async () => {
+    const f = [...($("cv").files || []), ...($("zeug").files || [])];
+    if (!$("cv").files.length) { alert("Bitte zuerst den Lebenslauf (PDF) auswählen."); return; }
+    if (f.reduce((t, x) => t + x.size, 0) > 3.2e6) { alert("Dateien zu groß (zusammen max. ca. 3 MB)."); return; }
+    $("gen").disabled = true; $("genst").textContent = "Anschreiben wird erstellt…";
+    try {
+      const docs = []; for (const x of f) docs.push(await readB64(x));
+      const answers = { name: prof().name, wohnort: prof().city, telefon: prof().phone, aufenthalt: $("qaufenthalt").value, beginn: $("qbeginn").value, umzug: $("qumzug").value, sonstiges: $("qextra").value };
+      const r = await api("/api/generate", { method: "POST", headers: JSONH, body: JSON.stringify({ docs, beruf: $("was").value, answers }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || REASON[d.reason] || "Fehler");
+      $("txt").value = d.anschreiben || ""; if (d.betreff) $("subj").value = d.betreff; if (d.emailtext) $("mailtxt").value = d.emailtext;
+      if (d.name) $("pname").value = d.name; if (d.wohnort && !$("pcity").value) $("pcity").value = d.wohnort; if (d.telefon && !$("pphone").value) $("pphone").value = d.telefon;
+      $("genst").textContent = "Fertig. Bitte Text prüfen und bei Bedarf ändern.";
+    } catch (e) { $("genst").textContent = "Fehler: " + e.message; }
+    $("gen").disabled = false;
+  };
+
+  $("testmail").onclick = () => {
+    if (!MAIL) { alert("Bitte zuerst anmelden."); return; }
+    JOBS.forEach((_, i) => { const c = $("c" + i); if (c) c.checked = false; });
+    addRow({ firma: "Test GmbH", beruf: $("was").value || "Pflegefachmann", plz: "12345", ort: "Musterstadt", quelle: "Test" });
+    const i = JOBS.length - 1;
+    $("n" + i).value = "Herr Müller"; $("e" + i).value = MAIL; $("c" + i).checked = true;
+    $("send").onclick();
+  };
+
+  $("csv").onclick = () => {
+    const q = (v) => `"${String(v).replaceAll('"', '""')}"`;
+    const rows = [["Firma", "Beruf", "PLZ", "Ort", "E-Mail"], ...JOBS.map((j, i) => [j.firma, j.beruf, j.plz, j.ort, $("e" + i).value])];
+    const blob = new Blob(["\ufeff" + rows.map(r => r.map(q).join(";")).join("\n")], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "firmen.csv"; a.click();
+  };
+
+  sb.auth.onAuthStateChange((event, session) => { render(session); });
+  sb.auth.getSession().then(({ data }) => render(data.session));
+</script>
+</body>
+</html>
