@@ -1,5 +1,9 @@
 // Arbeitsagentur: Ausbildungsstellen suchen
-const H = { "X-API-Key": "jobboerse-jobsuche" };
+const H = {
+  "X-API-Key": "jobboerse-jobsuche",
+  "User-Agent": "Jobsuche/2.9.3 (de.arbeitsagentur.jobboerse; build:1077; iOS 15.1.0) Alamofire/5.4.4",
+  "Accept": "application/json",
+};
 const B = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc";
 
 module.exports = async (req, res) => {
