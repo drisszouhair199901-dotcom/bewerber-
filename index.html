@@ -115,7 +115,7 @@ Tel.: {telefon}</textarea>
   </section>
 </main>
 <script>
-  const SUPABASE_URL = "https://obmqvalclexmfstkwkih.supabase.com";
+  const SUPABASE_URL = "https://obmqvalclexmfstkwkih.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_Mcq6NZ1DqiJTNaeRmYDFrg_5WPy79Zi";
 
   let sb;
@@ -332,6 +332,90 @@ Tel.: {telefon}</textarea>
     $("info").textContent = `${JOBS.length} Firmen, ${n} E-Mails gefunden.`;
   };
 
-  const GURL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
-  async function gmailRefresh() {
-    const rt = localStorage.getItem("grt"); if (!rt)
+      const GURL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
+
+  async function gmailSend(raw) {
+    if (!TOKEN) throw new Error("Gmail-Token fehlt. Bitte abmelden und neu mit Google anmelden.");
+    const r = await fetch(GURL, { method: "POST", headers: { Authorization: "Bearer " + TOKEN, "Content-Type": "message/rfc822" }, body: raw });
+    if (r.status === 401) throw new Error("Gmail-Token abgelaufen. Bitte neu anmelden.");
+    if (!r.ok) { let m = ""; try { m = (await r.json()).error.message; } catch {} throw new Error(m || "Gmail Fehler " + r.status); }
+  }
+
+  $("send").onclick = async () => {
+    if (!JOBS.length) return alert("Keine Firmen vorhanden.");
+    const cvF = $("cv").files[0], zF = [...$("zeug").files];
+    if (!cvF) return alert("Bitte Lebenslauf (PDF) hochladen.");
+    if (!$("txt").value.trim()) return alert("Bitte Anschreiben erstellen oder eingeben.");
+    const todo = JOBS.map((j, i) => i).filter(i => $("c" + i).checked && $("e" + i).value.trim());
+    if (!todo.length) return alert("Keine Firma mit E-Mail ausgewählt.");
+    if (!confirm(`${todo.length} Bewerbungen senden?`)) return;
+    STOP = false; $("stop").hidden = false; $("send").disabled = true;
+    const cvData = await readB64(cvF), zData = await Promise.all(zF.map(async f => ({ name: safe(f.name), type: "application/pdf", data: await readB64(f) })));
+    const dmin = Math.max(10, +$("dmin").value || 10), dmax = Math.max(dmin, +$("dmax").value || 180);
+    const batch = Math.max(1, +$("batch").value || 20), pause = Math.max(1, +$("pause").value || 5);
+    let sent = 0;
+    for (const i of todo) {
+      if (STOP) break;
+      const j = JOBS[i], st = $("s" + i);
+      st.textContent = "Sende…";
+      try {
+        const P = prof();
+        const atts = [
+          { name: safe(`Anschreiben_${P.name || "Bewerbung"}.pdf`), type: "application/pdf", data: anschreibenPdf(j, i) },
+          { name: safe(`Lebenslauf_${P.name || "CV"}.pdf`), type: "application/pdf", data: cvData },
+          ...zData
+        ];
+        await gmailSend(buildMime($("e" + i).value.trim(), fill($("subj").value, j, i), fill($("mailtxt").value, j, i), atts));
+        st.textContent = "Gesendet ✓"; $("c" + i).checked = false; sent++;
+      } catch (e) {
+        st.textContent = "Fehler: " + e.message;
+        if (/Token/.test(e.message)) break;
+      }
+      if (STOP || i === todo[todo.length - 1]) continue;
+      if (sent > 0 && sent % batch === 0) {
+        for (let s = pause * 60; s > 0 && !STOP; s--) { $("info").textContent = `Lange Pause: ${mmss(s)}`; await sleep(1000); }
+      } else {
+        const w = Math.floor(dmin + Math.random() * (dmax - dmin));
+        for (let s = w; s > 0 && !STOP; s--) { $("info").textContent = `Nächste E-Mail in ${s} Sek.`; await sleep(1000); }
+      }
+    }
+    $("stop").hidden = true; $("send").disabled = false;
+    $("info").textContent = `${sent} E-Mails gesendet.`;
+  };
+
+  $("csv").onclick = () => {
+    const q = (v) => '"' + String(v ?? "").replaceAll('"', '""') + '"';
+    const rows = [["Firma", "Beruf", "Ort", "Ansprechpartner", "E-Mail", "Quelle"]];
+    JOBS.forEach((j, i) => rows.push([j.firma, j.beruf, `${j.plz || ""} ${j.ort || ""}`.trim(), $("n" + i).value, $("e" + i).value, j.quelle]));
+    const blob = new Blob(["\ufeff" + rows.map(r => r.map(q).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "bewerbungen.csv"; a.click();
+  };
+
+  ["pname", "pcity", "pphone"].forEach(id => $(id).addEventListener("input", () => {
+    try { localStorage.setItem("prof", JSON.stringify({ pname: $("pname").value, pcity: $("pcity").value, pphone: $("pphone").value })); } catch {}
+  }));
+
+  $("gen").onclick = async () => {
+    const P = prof();
+    $("txt").value = `{anrede}
+
+hiermit bewerbe ich mich um einen Ausbildungsplatz als {beruf} bei {firma}.
+
+${$("qaufenthalt").value.trim()}${$("qaufenthalt").value.trim() ? ".\n\n" : ""}Ich kann die Ausbildung frühestens am ${$("qbeginn").value.trim() || "[Datum]"} beginnen. Umzugsbereitschaft: ${$("qumzug").value.trim() || "[Angabe]"}.
+
+${$("qextra").value.trim()}
+
+Meinen Lebenslauf und meine Zeugnisse finden Sie in den Anlagen. Über eine Einladung zu einem Gespräch freue ich mich sehr.
+
+Mit freundlichen Grüßen
+{name}`;
+    $("genst").textContent = "Vorlage erstellt. Bitte prüfen und anpassen.";
+  };
+
+  if (sb) {
+    sb.auth.getSession().then(({ data }) => render(data.session));
+    sb.auth.onAuthStateChange((_e, session) => render(session));
+  }
+</script>
+</body>
+</html>
