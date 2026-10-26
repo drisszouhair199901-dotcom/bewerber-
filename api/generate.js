@@ -1,11 +1,10 @@
-// Erstellt aus Lebenslauf + Zeugnissen (PDF) ein Anschreiben mit Platzhaltern.
-// Reihenfolge: 1) Gemini (kostenlos, GEMINI_API_KEY)  2) Anthropic (optional, ANTHROPIC_API_KEY)  3) feste Vorlage (immer kostenlos, ohne KI)
+// generate.js - النسخة الاحترافية لتوليد رسالة التحفيز والبيانات مستخرجة من الـ CV
 const L = require("./_lib");
 const hits = {};
 
 const clean = (s) => String(s || "").replace(/[{}]/g, "").trim();
 
-// E-Mail-Text, der mit den Unterlagen verschickt wird: Daten des Bewerbers (Name, Telefon, Beruf), {anrede} füllt die Seite je Firma.
+// E-Mail-Text, der mit den Unterlagen verschickt wird:
 function mailText(name, telefon) {
   const n = clean(name) || "{name}", t = clean(telefon);
   return `{anrede}
@@ -16,7 +15,7 @@ Mit freundlichen Grüßen
 ${n}${t ? "\nTel.: " + t : ""}`;
 }
 
-// Feste Vorlage ohne KI. Nur {anrede}, {firma}, {beruf}, {name} bleiben als Platzhalter.
+// قالب ثابت احترافي وبدون فراغات عشوائية
 function vorlage(beruf, answers) {
   const b = clean(beruf) || "Ausbildung";
   const dot = (x) => (/[.!?]$/.test(x) ? x : x + ".");
@@ -26,19 +25,15 @@ function vorlage(beruf, answers) {
   if (clean(answers.umzug)) f.push(`Zur Umzugsbereitschaft: ${dot(clean(answers.umzug))}`);
   const fakten = f.length ? f.join(" ") + "\n\n" : "";
   const extra = clean(answers.sonstiges) ? clean(answers.sonstiges) + "\n\n" : "";
+  
   const text = `{anrede}
 
-mit großem Interesse bewerbe ich mich bei {firma} um einen Ausbildungsplatz als {beruf}.
+mit großem Interesse habe ich Ihre Stellenausschreibung für die Ausbildung als {beruf} bei {firma} gelesen. Da ich hochmotiviert bin und gerne im Team arbeite, möchte ich mich Ihnen hiermit vorstellen.
 
-Ich möchte eine fundierte Ausbildung in diesem Beruf machen und mich langfristig in diesem Bereich weiterentwickeln. Lernbereitschaft, Zuverlässigkeit und Teamarbeit sind mir dabei wichtig. Meine Qualifikationen und Nachweise finden Sie in den Anlagen.
+In meinem beigefügten Lebenslauf und meinen Zeugnissen finden Sie detaillierte Nachweise über meine Qualifikationen und Vorkenntnisse. ${fakten}${extra}Ich bin mir der Herausforderungen einer Ausbildung in Deutschland bewusst und bringe die nötige Disziplin, Zuverlässigkeit sowie eine hohe Lernbereitschaft mit, um mich schnell in Ihr Team zu integrieren.
 
-${fakten}${extra}Über die Einladung zu einem persönlichen Gespräch freue ich mich sehr.
+Über eine Einladung zu einem persönlichen Gespräch, gerne auch online, würde ich mich sehr freuen.`;
 
-Mit freundlichen Grüßen
-
-{name}
-
-Anlagen: Lebenslauf, Zeugnisse`;
   return {
     name: clean(answers.name), wohnort: clean(answers.wohnort), telefon: clean(answers.telefon),
     betreff: `Bewerbung um einen Ausbildungsplatz als ${b} (m/w/d)`,
@@ -88,16 +83,23 @@ module.exports = async (req, res) => {
   const { docs = [], beruf = "", answers = {} } = req.body || {};
   if (!docs.length) return res.status(400).json({ error: "Lebenslauf fehlt" });
 
-  const prompt = `Du schreibst ein Anschreiben für eine Ausbildungsbewerbung in Deutschland.
-Quellen: die angehängten PDFs (das erste ist der Lebenslauf, die weiteren sind Zeugnisse) und diese Angaben des Bewerbers: ${JSON.stringify(answers)}.
+  const prompt = `Du schreibst ein professionelles und sauberes Anschreiben für eine Ausbildungsbewerbung in Deutschland.
+Quellen: die angehängten PDFs (Lebenslauf und Zeugnisse) und diese Angaben: ${JSON.stringify(answers)}.
 Ausbildungsberuf: ${beruf}.
 Regeln:
-- Nur Fakten aus den Unterlagen und Angaben verwenden. Nichts erfinden. Fehlt eine Information, lass sie weg.
-- Beantworte die Fragen, die deutsche Betriebe typischerweise haben: Warum dieser Beruf? Motivation, Schulabschluss und Qualifikationen, Deutschniveau, Stärken und Erfahrungen (auch Praktika, Ehrenamt, Hobbys), Aufenthalts-/Arbeitserlaubnis bzw. Visum, frühester Beginn, Umzugsbereitschaft.
-- Über die Firma nichts erfinden. Der Firmenname steht nur als {firma}.
-- Platzhalter genau so verwenden: {anrede} (erste Zeile), {firma}, {beruf}, {name}.
-- 250 bis 350 Wörter, klare, korrekte, einfache Sprache.
-- Ende: "Mit freundlichen Grüßen\\n\\n{name}\\n\\nAnlagen: Lebenslauf, Zeugnisse".
+- Nur Fakten aus den Unterlagen verwenden. Keine erfundenen Details.
+- Verwende exakt diesen sauberen und professionellen Aufbau ohne unnötige Absätze:
+"{anrede}
+
+mit großem Interesse habe ich Ihre Stellenausschreibung für die Ausbildung als {beruf} bei {firma} gelesen. Da ich hochmotiviert bin und gerne im Team arbeite, möchte ich mich Ihnen hiermit vorstellen.
+
+In meinem beigefügten Lebenslauf und meinen Zeugnissen finden Sie detaillierte Nachweise über meine Qualifikationen und Vorkenntnisse. [Hier optional Aufenhalt/Beginn/Umzug einfügen falls vorhanden]
+
+Ich bin mir der Herausforderungen einer Ausbildung in Deutschland bewusst und bringe die nötige Disziplin, Zuverlässigkeit sowie eine hohe Lernbereitschaft mit, um mich schnell in Ihr Team zu integrieren.
+
+Über eine Einladung zu einem persönlichen Gespräch, gerne auch online, würde ich mich sehr freuen."
+
+- Am Ende KEIN "Mit freundlichen Grüßen" oder Name im Anschreiben, da das über die Signatur läuft.
 Antworte NUR mit JSON: {"name":"","wohnort":"","telefon":"","betreff":"Bewerbung um einen Ausbildungsplatz als ... (m/w/d)","anschreiben":"","emailtext":"kurzer E-Mail-Text mit {anrede} und {name}"}`;
 
   const E = process.env;
@@ -105,8 +107,8 @@ Antworte NUR mit JSON: {"name":"","wohnort":"","telefon":"","betreff":"Bewerbung
   if (E.GEMINI_API_KEY) engines.push(gemini);
   if (E.ANTHROPIC_API_KEY) engines.push(anthropic);
   for (const run of engines) {
-    try { const o = await run(docs, prompt); o.emailtext = mailText(o.name || answers.name, o.telefon || answers.telefon); return res.json(o); } catch (e) { /* nächste Möglichkeit */ }
+    try { const o = await run(docs, prompt); o.emailtext = mailText(o.name || answers.name, o.telefon || answers.telefon); return res.json(o); } catch (e) { /* Fallback */ }
   }
-  // Kein Schlüssel oder KI nicht erreichbar / Limit erreicht: kostenlose feste Vorlage
+  
   res.json(vorlage(beruf, answers));
 };
