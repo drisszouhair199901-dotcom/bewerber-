@@ -6,11 +6,11 @@ const hits = {};
 const clean = (s) => String(s || "").replace(/[{}]/g, "").trim();
 
 // E-Mail-Text, der mit den Unterlagen verschickt wird: Daten des Bewerbers (Name, Telefon, Beruf), {anrede} füllt die Seite je Firma.
-function mailText(beruf, name, telefon) {
-  const b = clean(beruf) || "Ausbildung", n = clean(name) || "{name}", t = clean(telefon);
+function mailText(name, telefon) {
+  const n = clean(name) || "{name}", t = clean(telefon);
   return `{anrede}
 
-anbei erhalten Sie meine Bewerbung um einen Ausbildungsplatz als ${b} mit Anschreiben und Lebenslauf. Über eine Einladung zu einem persönlichen Gespräch, gern auch online, würde ich mich sehr freuen.
+anbei erhalten Sie meine Bewerbung um einen Ausbildungsplatz als {beruf} mit Anschreiben und Lebenslauf. Über eine Einladung zu einem persönlichen Gespräch, gern auch online, würde ich mich sehr freuen.
 
 Mit freundlichen Grüßen
 ${n}${t ? "\nTel.: " + t : ""}`;
@@ -19,17 +19,20 @@ ${n}${t ? "\nTel.: " + t : ""}`;
 // Feste Vorlage ohne KI. Nur {anrede}, {firma}, {beruf}, {name} bleiben als Platzhalter.
 function vorlage(beruf, answers) {
   const b = clean(beruf) || "Ausbildung";
-  const erf = clean(answers.erfahrung || answers.experience || "");
-  const name = clean(answers.name || "");
+  const dot = (x) => (/[.!?]$/.test(x) ? x : x + ".");
+  const f = [];
+  if (clean(answers.aufenthalt)) f.push(dot(clean(answers.aufenthalt)));
+  if (clean(answers.beginn)) f.push(`Mein frühester Ausbildungsbeginn ist ${dot(clean(answers.beginn))}`);
+  if (clean(answers.umzug)) f.push(`Zur Umzugsbereitschaft: ${dot(clean(answers.umzug))}`);
+  const fakten = f.length ? f.join(" ") + "\n\n" : "";
+  const extra = clean(answers.sonstiges) ? clean(answers.sonstiges) + "\n\n" : "";
   const text = `{anrede}
 
 mit großem Interesse bewerbe ich mich bei {firma} um einen Ausbildungsplatz als {beruf}.
 
-Dieser Beruf passt sehr gut zu mir, weil ich gern Verantwortung übernehme, zuverlässig arbeite und mich mit Freude in ein Team einbringe. Ich möchte eine fundierte Ausbildung machen und mich langfristig in diesem Bereich weiterentwickeln.
+Ich möchte eine fundierte Ausbildung in diesem Beruf machen und mich langfristig in diesem Bereich weiterentwickeln. Lernbereitschaft, Zuverlässigkeit und Teamarbeit sind mir dabei wichtig. Meine Qualifikationen und Nachweise finden Sie in den Anlagen.
 
-${erf ? erf + "\n\n" : ""}Meine Deutschkenntnisse habe ich durch einen Sprachkurs und eine Prüfung nachgewiesen, die Nachweise finden Sie in den Anlagen. Ich lerne schnell, bin lern- und anpassungsbereit und kann zum nächstmöglichen Zeitpunkt beginnen. Ein Umzug ist für mich kein Problem.
-
-Über die Einladung zu einem persönlichen Gespräch freue ich mich sehr.
+${fakten}${extra}Über die Einladung zu einem persönlichen Gespräch freue ich mich sehr.
 
 Mit freundlichen Grüßen
 
@@ -37,10 +40,10 @@ Mit freundlichen Grüßen
 
 Anlagen: Lebenslauf, Zeugnisse`;
   return {
-    name, wohnort: clean(answers.wohnort || ""), telefon: clean(answers.telefon || ""),
+    name: clean(answers.name), wohnort: clean(answers.wohnort), telefon: clean(answers.telefon),
     betreff: `Bewerbung um einen Ausbildungsplatz als ${b} (m/w/d)`,
     anschreiben: text,
-    emailtext: mailText(b, name, clean(answers.telefon || "")),
+    emailtext: mailText(answers.name, answers.telefon),
     vorlage: true,
   };
 }
@@ -102,7 +105,7 @@ Antworte NUR mit JSON: {"name":"","wohnort":"","telefon":"","betreff":"Bewerbung
   if (E.GEMINI_API_KEY) engines.push(gemini);
   if (E.ANTHROPIC_API_KEY) engines.push(anthropic);
   for (const run of engines) {
-    try { const o = await run(docs, prompt); o.emailtext = mailText(beruf, o.name, o.telefon); return res.json(o); } catch (e) { /* nächste Möglichkeit */ }
+    try { const o = await run(docs, prompt); o.emailtext = mailText(o.name || answers.name, o.telefon || answers.telefon); return res.json(o); } catch (e) { /* nächste Möglichkeit */ }
   }
   // Kein Schlüssel oder KI nicht erreichbar / Limit erreicht: kostenlose feste Vorlage
   res.json(vorlage(beruf, answers));
