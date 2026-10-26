@@ -102,12 +102,11 @@
     <h2>E-Mail-Text</h2>
     <textarea id="mailtxt" style="min-height:150px">{anrede}
 
-anbei erhalten Sie meine Bewerbung um einen Ausbildungsplatz als Pflegefachmann (m/w/d) mit Anschreiben, Lebenslauf und Zeugnissen im PDF-Format.
-
-Über eine Rückmeldung freue ich mich sehr.
+anbei erhalten Sie meine Bewerbung um einen Ausbildungsplatz als {beruf} mit Anschreiben und Lebenslauf. Über eine Einladung zu einem persönlichen Gespräch, gern auch online, würde ich mich sehr freuen.
 
 Mit freundlichen Grüßen
-{name}</textarea>
+{name}
+Tel.: {telefon}</textarea>
     <h2>Sendeplan (schützt dein Gmail-Konto)</h2>
     <div class="row"><label class="note">Pause min. (Sek.)<input id="dmin" type="number" min="10" value="10"></label><label class="note">Pause max. (Sek.)<input id="dmax" type="number" min="10" value="180"></label><label class="note">Pause nach X E-Mails<input id="batch" type="number" min="1" value="20"></label><label class="note">Lange Pause (Min.)<input id="pause" type="number" min="1" value="5"></label></div>
     <div class="row" style="margin-top:12px"><button class="s" id="send">Ausgewählte senden</button><button class="s ghost" id="csv">Excel (CSV)</button></div>
@@ -217,7 +216,7 @@ Mit freundlichen Grüßen
     return `Guten Tag ${n},`;
   }
   const anrede = (i) => anredeFor($("n" + i).value);
-  const fill = (t, j, i) => t.replaceAll("{anrede}", anrede(i)).replaceAll("{firma}", j.firma).replaceAll("{beruf}", j.beruf).replaceAll("{name}", prof().name);
+  const fill = (t, j, i) => t.replaceAll(prof().phone ? "{telefon}" : "\nTel.: {telefon}", prof().phone ? prof().phone : "").replaceAll("{anrede}", anrede(i)).replaceAll("{firma}", j.firma).replaceAll("{beruf}", j.beruf).replaceAll("{name}", prof().name);
 
   const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
   const wrap76 = (b) => b.replace(/.{1,76}/g, "$&\r\n");
@@ -305,84 +304,4 @@ Mit freundlichen Grüßen
       }));
     }
     $("stop").hidden = true;
-    $("info").textContent = `${JOBS.length} Firmen, ${n} E-Mails gefunden.` + (msgs.length ? " " + msgs.join(" | ") : "");
-  };
-
-  const GURL = "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
-  async function gmailRefresh() {
-    const rt = localStorage.getItem("grt"); if (!rt) return false;
-    try { const r = await api("/api/refresh", { method: "POST", headers: JSONH, body: JSON.stringify({ refresh_token: rt }) }); if (!r.ok) return false; TOKEN = (await r.json()).access_token; return true; } catch { return false; }
-  }
-  async function gmailSend(mime) {
-    const go = () => fetch(GURL, { method: "POST", headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "message/rfc822" }, body: mime });
-    let r = await go();
-    if (r.status === 401 && await gmailRefresh()) r = await go();
-    return r;
-  }
-  async function wait(sec, label) { for (let s = sec; s > 0 && !STOP; s--) { $("info").textContent = `${label} ${mmss(s)}`; await sleep(1000); } }
-
-  $("send").onclick = async () => {
-    if (!TOKEN && !(await gmailRefresh())) { alert("Gmail-Zugriff fehlt. Bitte neu anmelden."); return; }
-    const P = prof();
-    if (!P.name) { alert("Bitte Name im Profil eintragen."); return; }
-    if (!$("txt").value.trim()) { alert("Bitte zuerst das Anschreiben erstellen."); return; }
-    try { localStorage.setItem("prof", JSON.stringify({ pname: P.name, pcity: P.city, pphone: P.phone })); } catch {}
-    const files = [];
-    for (const f of [...($("cv").files || []), ...($("zeug").files || [])])
-      files.push({ name: safe(f.name), type: f.type || "application/pdf", data: await readB64(f) });
-    if (!$("cv").files.length && !confirm("Kein Lebenslauf ausgewählt. Trotzdem senden?")) return;
-    const lo = Math.max(10, +$("dmin").value || 10), hi = Math.max(lo, +$("dmax").value || 180), batch = Math.max(1, +$("batch").value || 20), pause = Math.max(1, +$("pause").value || 5);
-    const todo = JOBS.map((_, i) => i).filter((i) => $("c" + i).checked && $("e" + i).value.trim());
-    let wl = null, ok = 0; STOP = false; $("stop").hidden = false;
-    try { wl = await navigator.wakeLock.request("screen"); } catch {}
-    for (const [n, i] of todo.entries()) {
-      if (STOP) break;
-      const chk = await api("/api/auth"); if (!chk.ok) { gateCheck(); break; }
-      const to = $("e" + i).value.trim(), j = JOBS[i];
-      $("s" + i).textContent = "…"; $("info").textContent = `Sende ${n + 1}/${todo.length}…`;
-      let r = null;
-      try {
-        const letter = { name: safe(`Anschreiben_${P.name}_${j.firma}`).slice(0, 80) + ".pdf", type: "application/pdf", data: anschreibenPdf(j, i) };
-        r = await gmailSend(buildMime(to, fill($("subj").value, j, i), fill($("mailtxt").value, j, i), [letter, ...files]));
-        $("s" + i).textContent = r.ok ? "Gesendet" : "Fehler " + r.status;
-        if (r.ok) { $("c" + i).checked = false; ok++; }
-      } catch { $("s" + i).textContent = "Fehler"; }
-      if (r && (r.status === 401 || r.status === 429)) { alert(r.status === 401 ? "Gmail-Zugriff abgelaufen. Bitte neu anmelden." : "Gmail-Limit erreicht. Später fortsetzen."); break; }
-      if (n === todo.length - 1) break;
-      if ((n + 1) % batch === 0) await wait(pause * 60, `Pause nach ${n + 1} E-Mails. Weiter in`);
-      else await wait(Math.round(lo + Math.random() * (hi - lo)), "Nächste E-Mail in");
-    }
-    $("stop").hidden = true; $("info").textContent = `Fertig: ${ok} E-Mails gesendet.`;
-    try { wl && wl.release(); } catch {}
-  };
-
-  $("gen").onclick = async () => {
-    const f = [...($("cv").files || []), ...($("zeug").files || [])];
-    if (!$("cv").files.length) { alert("Bitte zuerst den Lebenslauf (PDF) auswählen."); return; }
-    if (f.reduce((t, x) => t + x.size, 0) > 3.2e6) { alert("Dateien zu groß (zusammen max. ca. 3 MB)."); return; }
-    $("gen").disabled = true; $("genst").textContent = "Anschreiben wird erstellt…";
-    try {
-      const docs = []; for (const x of f) docs.push(await readB64(x));
-      const answers = { aufenthalt: $("qaufenthalt").value, beginn: $("qbeginn").value, umzug: $("qumzug").value, sonstiges: $("qextra").value };
-      const r = await api("/api/generate", { method: "POST", headers: JSONH, body: JSON.stringify({ docs, beruf: $("was").value, answers }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || REASON[d.reason] || "Fehler");
-      $("txt").value = d.anschreiben || ""; if (d.betreff) $("subj").value = d.betreff; if (d.emailtext) $("mailtxt").value = d.emailtext;
-      if (d.name) $("pname").value = d.name; if (d.wohnort && !$("pcity").value) $("pcity").value = d.wohnort; if (d.telefon && !$("pphone").value) $("pphone").value = d.telefon;
-      $("genst").textContent = "Fertig. Bitte Text prüfen und bei Bedarf ändern.";
-    } catch (e) { $("genst").textContent = "Fehler: " + e.message; }
-    $("gen").disabled = false;
-  };
-
-  $("csv").onclick = () => {
-    const q = (v) => `"${String(v).replaceAll('"', '""')}"`;
-    const rows = [["Firma", "Beruf", "PLZ", "Ort", "E-Mail"], ...JOBS.map((j, i) => [j.firma, j.beruf, j.plz, j.ort, $("e" + i).value])];
-    const blob = new Blob(["\ufeff" + rows.map(r => r.map(q).join(";")).join("\n")], { type: "text/csv" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "firmen.csv"; a.click();
-  };
-
-  sb.auth.onAuthStateChange((event, session) => { render(session); });
-  sb.auth.getSession().then(({ data }) => render(data.session));
-</script>
-</body>
-</html>
+    $("info").textContent = `${JOBS.length} Firmen, ${n} E-
