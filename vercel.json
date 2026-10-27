@@ -1,0 +1,10 @@
+{
+  "regions": ["fra1"],
+  "functions": {
+    "api/generate.js": { "maxDuration": 60 },
+    "api/email.js": { "maxDuration": 30 },
+    "api/queue.js": { "maxDuration": 30 },
+    "api/schedule.js": { "maxDuration": 60 },
+    "api/cron.js": { "maxDuration": 60 }
+  }
+}
