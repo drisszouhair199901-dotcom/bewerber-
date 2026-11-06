@@ -1,0 +1,31 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+
+# Alle /api/... Aufrufe laufen über den Adapter
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200
+  force = true
+
+# Quellcode und Doku nicht öffentlich ausliefern
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/vercel.json"
+  to = "/404.html"
+  status = 404
+  force = true
