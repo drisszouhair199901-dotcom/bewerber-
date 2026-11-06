@@ -7,7 +7,7 @@
 # Alle /api/... Aufrufe laufen über den Adapter
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api"
+  to = "/.netlify/functions/gateway"
   status = 200
   force = true
 
